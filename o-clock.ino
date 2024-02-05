@@ -85,13 +85,13 @@ PubSubClient client(espClient);
 // --------------------
 
 //                  OBEGRÃ„NSAD ARIKEL       FREKVENS ARTIKEL
-#define P_EN D5   // ORANGE                  ROSA
-#define P_DI D6   // GELB                    GELB
-#define P_CLK D7  // BLAU                    LILA
-#define P_CLA D8  // LILA                    BLUE
+#define P_EN  D5   // ORANGE                  ROSA
+#define P_DI  D6   // GELB                    GELB
+#define P_CLK D7   // BLAU                    LILA
+#define P_CLA D8   // LILA                    BLUE
 
-#define P_KEY D4         // ROT
-#define P_KEY_YELLOW D2  // YELLOW BUTTON
+#define P_KEY_YELLOW D2         // white wire - yellow button
+#define P_KEY_RED    D1         // black wire - RED BUTTON
 
 
 bool mqttenable = false;
@@ -532,13 +532,17 @@ void onOTAEnd(bool success) {
 
 
 void setup() {
+  
   Serial.begin(115200);  // Native Baud Rate of ESP  115200
+  pinMode(LED_BUILTIN, OUTPUT);  // Initialize the LED_BUILTIN pin as an output
+  digitalWrite(LED_BUILTIN, LOW);  // Turn the LED on (Note that LOW is the voltage level
   Serial.println();
   Serial.printf("Booting Clock Version V%s\n", CLOCK_VERSION);
   // Local IP for later usage
   IPAddress ip_addr;      // the IP address 
 
-  pinMode(P_KEY, INPUT_PULLUP);   // RED KEY
+  pinMode(P_KEY_RED,    INPUT_PULLUP);   // RED KEY
+  pinMode(P_KEY_YELLOW, INPUT_PULLUP);   // YELLOW KEY
   pinMode(P_EN, OUTPUT);          // Pseudo Analog out for FM Brightess
   analogWrite(P_EN, brightness);  // adjust brightness
 
@@ -739,11 +743,26 @@ void mqtt_reconnect() {
 
 void loop() {
 
+    static uint8 led_blink = 1;
+
   // JEDE SEKUNDE
   if (millis() > mil + 1000) {
     mil = millis();
     set_clock_from_tm();
     print_time();      // Update Display Seconds
+
+    if (led_blink == 1)
+    {
+      Serial.printf("LED OFF");
+      digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
+      led_blink = 0;
+    }
+    else
+    {
+      Serial.printf("LED ON");
+      digitalWrite(LED_BUILTIN, LOW);  // Turn the LED on (Note that LOW is the voltage level  
+      led_blink = 1;
+    }
 
     // Jede Stunde
     if ((tm.tm_sec == 0) && (tm.tm_min == 0)) {
@@ -752,11 +771,10 @@ void loop() {
     }
   }
 
-  // TASTE gedrueckt  Helligkeit einstellen. Max = 0, Min = 254
-  if (digitalRead(P_KEY) == 0) {
+  // Yellow Button pressed -   Helligkeit einstellen. Max = 0, Min = 254
+  if (digitalRead(P_KEY_YELLOW) == 0) {
     if (brightness > 205) brightness = 104;  // 104,154,204,254
     brightness += 25;
-    WebSerial.println("Received Data...");
 
     analogWrite(P_EN, brightness);
     print_time();
@@ -767,7 +785,20 @@ void loop() {
 
     WebSerial.print("Brightness: ");
     WebSerial.println(brightness);
+
+  // Button Debounce
+    delay(100);
   }
+
+  // Red Button pressed
+  if (digitalRead(P_KEY_RED) == 0) {
+
+    Serial.println("Red Button Pressed");
+    WebSerial.println("Red Button Pressed");
+    // Button Debounce
+    delay(100);
+  }
+    
 
   if (mqttenable) {
     if (!client.connected()) {
